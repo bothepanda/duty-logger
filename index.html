@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#F4F4F8">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Логгер">
+<title>Дежурный логгер</title>
+
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%234A5F9A'/%3E%3Ctext x='32' y='46' font-size='42' text-anchor='middle' fill='%23F4F4F8' font-family='Georgia,serif'%3EK%3C/text%3E%3C/svg%3E">
+
+<style>
+  :root {
+    --primary: #4A5F9A;
+    --secondary: #8B9ED4;
+    --sand: #C5A47E;
+    --pearl: #F4F4F8;
+    --ink: #1E1D2E;
+    --ink-light: #6E6D7E;
+    --rule: #E5E5EC;
+    --serif: Georgia, 'Times New Roman', serif;
+    --mono: 'Courier New', Courier, monospace;
+    --sans: system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    background: var(--pearl); color: var(--ink);
+    font-family: var(--sans);
+    min-height: 100vh; overscroll-behavior: none;
+  }
+  body { padding-bottom: env(safe-area-inset-bottom); }
+  input, select, textarea, button { font-family: inherit; -webkit-appearance: none; appearance: none; }
+  input[type="date"]::-webkit-calendar-picker-indicator, input[type="time"]::-webkit-calendar-picker-indicator, input[type="datetime-local"]::-webkit-calendar-picker-indicator { opacity: 0.6; cursor: pointer; }
+  select option { background: white; color: var(--ink); }
+  select optgroup { background: var(--pearl); color: var(--primary); font-style: italic; font-weight: 600; }
+
+  .header {
+    border-bottom: 1px solid var(--rule);
+    padding: 16px 20px 14px;
+    padding-top: calc(env(safe-area-inset-top) + 16px);
+    display: flex; align-items: flex-end; justify-content: space-between;
+    background: white; position: sticky; top: 0; z-index: 10;
+  }
+  .header-title {
+    font-family: var(--mono);
+    font-size: 9px; color: var(--sand);
+    letter-spacing: 3px; margin-bottom: 4px;
+  }
+  .header-main {
+    font-family: var(--serif);
+    font-size: 22px; color: var(--ink); letter-spacing: -0.5px;
+    font-weight: 400;
+  }
+  .header-meta { font-family: var(--mono); font-size: 10px; color: var(--ink-light); text-align: right; letter-spacing: 0.5px; }
+  .header-meta .status-loading { color: var(--primary); }
+  .header-meta .status-error { color: #B5485A; max-width: 130px; font-size: 9px; }
+  .header-meta .status-sync { color: var(--sand); }
+
+  .nav {
+    display: flex; border-bottom: 1px solid var(--rule); background: white;
+    position: sticky; top: 68px; z-index: 9;
+  }
+  .nav button {
+    flex: 1; padding: 14px 8px; background: transparent; border: none;
+    border-bottom: 2px solid transparent; color: var(--ink-light);
+    font-family: var(--mono);
+    font-size: 10px; letter-spacing: 2px; cursor: pointer; transition: all 0.15s;
+  }
+  .nav button.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+  .container { padding: 20px; max-width: 680px; margin: 0 auto; }
+
+  .config-banner {
+    background: white; border: 1px solid var(--sand); border-radius: 4px;
+    padding: 16px; margin-bottom: 16px; font-size: 13px; color: var(--ink); line-height: 1.5;
+  }
+  .config-banner strong { color: var(--primary); font-family: var(--serif); font-size: 16px; }
+  .config-banner input {
+    width: 100%; margin-top: 10px; padding: 10px;
+    background: var(--pearl); border: 1px solid var(--rule); color: var(--ink);
+    border-radius: 4px; font-size: 11px; word-break: break-all; font-family: var(--mono);
+  }
+  .config-banner button {
+    margin-top: 10px; padding: 10px 16px; background: var(--primary); border: none;
+    color: var(--pearl); border-radius: 4px; font-size: 11px; cursor: pointer;
+    font-family: var(--mono); letter-spacing: 1.5px;
+  }
+
+  .row { margin-bottom: 16px; }
+  .row-label {
+    font-family: var(--mono);
+    font-size: 10px; color: var(--ink-light);
+    letter-spacing: 2px; margin-bottom: 6px;
+  }
+
+  .input, .select, .textarea {
+    width: 100%; background: white; border: 1px solid var(--rule); border-radius: 4px;
+    color: var(--ink); font-size: 14px; padding: 12px; outline: none;
+    font-family: var(--sans);
+  }
+  .input:focus, .select:focus, .textarea:focus { border-color: var(--primary); }
+  .select.empty { color: var(--ink-light); }
+  .textarea { resize: vertical; min-height: 70px; }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  .duration-hint {
+    font-family: var(--mono);
+    font-size: 11px; color: var(--primary); text-align: right; margin-top: -10px; margin-bottom: 12px;
+  }
+
+  /* Multi-procedure selector */
+  .proc-chips {
+    display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px;
+  }
+  .proc-chip {
+    background: var(--primary); color: var(--pearl);
+    padding: 6px 10px 6px 12px;
+    border-radius: 4px; font-size: 12px;
+    display: inline-flex; align-items: center; gap: 8px;
+    max-width: 100%;
+  }
+  .proc-chip-text {
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 280px;
+  }
+  .proc-chip-remove {
+    background: transparent; border: none; color: var(--pearl);
+    font-size: 16px; line-height: 1; padding: 0; cursor: pointer; opacity: 0.8;
+  }
+  .proc-chip-remove:hover { opacity: 1; }
+  .add-proc-btn {
+    background: var(--pearl); border: 1px dashed var(--sand);
+    color: var(--sand); padding: 10px;
+    border-radius: 4px; width: 100%; cursor: pointer;
+    font-family: var(--mono); font-size: 11px; letter-spacing: 1px;
+    margin-top: 4px;
+  }
+  .add-proc-btn:active { background: white; }
+
+  .checkbox-row { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+  .checkbox-row input { width: 18px; height: 18px; accent-color: var(--primary); }
+  .checkbox-row label { font-size: 13px; color: var(--ink); cursor: pointer; }
+
+  .btn {
+    width: 100%; padding: 16px; background: var(--primary); border: 1px solid var(--primary);
+    border-radius: 4px; color: var(--pearl); font-size: 12px; letter-spacing: 2px;
+    cursor: pointer; margin-top: 8px;
+    font-family: var(--mono);
+  }
+  .btn:active { background: var(--ink); border-color: var(--ink); }
+  .btn:disabled { opacity: 0.5; cursor: wait; }
+  .btn.secondary { background: transparent; border-color: var(--sand); color: var(--sand); }
+
+  .entry {
+    background: white; border: 1px solid var(--rule); border-radius: 4px;
+    margin-bottom: 10px; overflow: hidden;
+  }
+  .entry-head { padding: 14px 16px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .entry-title {
+    font-family: var(--serif);
+    font-size: 16px; color: var(--ink); font-weight: 400;
+    overflow: hidden; text-overflow: ellipsis;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  }
+  .entry-meta {
+    font-family: var(--mono);
+    font-size: 10px; color: var(--ink-light); margin-top: 4px; letter-spacing: 0.5px;
+  }
+  .entry-tags { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
+  .tag {
+    font-family: var(--mono);
+    font-size: 9px; border: 1px solid; border-radius: 2px; padding: 2px 5px;
+    white-space: nowrap; letter-spacing: 0.5px; font-weight: 600;
+  }
+  .tag-onco { color: var(--sand); border-color: var(--sand); }
+  .tag-complication { color: #B5485A; border-color: #B5485A; }
+  .tag-pending { color: var(--secondary); border-color: var(--secondary); }
+  .entry-arrow { color: var(--ink-light); font-size: 11px; }
+
+  .entry-body { border-top: 1px solid var(--rule); padding: 14px 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; background: var(--pearl); }
+  .field-label { color: var(--ink-light); font-family: var(--mono); font-size: 9px; letter-spacing: 1px; }
+  .field-value { color: var(--ink); font-size: 13px; margin-top: 2px; word-break: break-word; }
+  .field-full { grid-column: 1 / -1; }
+
+  .delete-btn {
+    background: transparent; border: 1px solid #B5485A; color: #B5485A;
+    font-family: var(--mono);
+    font-size: 10px; padding: 7px 14px; border-radius: 2px; cursor: pointer;
+    letter-spacing: 1px; margin-top: 4px;
+  }
+  .delete-btn:active { background: #B5485A; color: white; }
+
+  .empty-state { color: var(--ink-light); font-size: 13px; text-align: center; padding-top: 40px; font-family: var(--mono); }
+
+  .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 20px; }
+  .stat-card { background: white; border: 1px solid var(--rule); border-radius: 4px; padding: 14px 6px; text-align: center; }
+  .stat-card.highlight { background: var(--primary); border-color: var(--primary); }
+  .stat-card.accent { border-color: #B5485A; }
+  .stat-value { font-family: var(--serif); font-size: 26px; font-weight: 400; color: var(--ink); }
+  .stat-card.highlight .stat-value { color: var(--pearl); }
+  .stat-card.accent .stat-value { color: #B5485A; }
+  .stat-label { font-family: var(--mono); font-size: 8px; color: var(--ink-light); letter-spacing: 1px; margin-top: 4px; }
+  .stat-card.highlight .stat-label { color: var(--secondary); }
+
+  .section-title {
+    font-family: var(--mono);
+    font-size: 10px; color: var(--ink-light); letter-spacing: 2px;
+    border-bottom: 1px solid var(--rule); padding-bottom: 6px; margin: 20px 0 12px;
+  }
+
+  .bar-row { display: flex; align-items: center; gap: 10px; font-size: 12px; margin-bottom: 10px; }
+  .bar-label { width: 140px; color: var(--ink); flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bar-track { flex: 1; background: var(--rule); border-radius: 2px; height: 6px; }
+  .bar-fill { background: var(--primary); height: 100%; border-radius: 2px; transition: width 0.4s; }
+  .bar-value { width: 24px; text-align: right; color: var(--primary); font-family: var(--mono); font-size: 11px; }
+
+  .search-row { display: flex; gap: 8px; margin-bottom: 16px; }
+  .search-row .input { flex: 1; }
+  .icon-btn { background: white; border: 1px solid var(--rule); color: var(--primary); border-radius: 4px; padding: 0 14px; cursor: pointer; font-size: 16px; }
+
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: var(--ink); border: 1px solid var(--ink); color: var(--pearl);
+    padding: 12px 20px; border-radius: 4px; font-size: 12px; letter-spacing: 1px;
+    z-index: 100; animation: slideUp 0.3s;
+    font-family: var(--mono);
+  }
+  .toast.error { background: #B5485A; border-color: #B5485A; }
+  @keyframes slideUp { from { transform: translate(-50%, 20px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
+
+  .settings-row { background: white; border: 1px solid var(--rule); border-radius: 4px; padding: 16px; margin-top: 20px; }
+  .settings-row .url-display { font-family: var(--mono); font-size: 11px; color: var(--ink-light); margin-top: 6px; word-break: break-all; }
+  .settings-row .change-btn { font-family: var(--mono); font-size: 11px; color: var(--sand); background: transparent; border: 1px solid var(--sand); padding: 6px 10px; margin-top: 10px; border-radius: 2px; cursor: pointer; letter-spacing: 1px; }
+
+  /* Modal for procedure selection */
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(30, 29, 46, 0.6);
+    z-index: 50; display: flex; align-items: flex-end; justify-content: center;
+    animation: fadeIn 0.2s;
+  }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  .modal {
+    background: var(--pearl); width: 100%; max-width: 680px;
+    max-height: 80vh; overflow: hidden; border-radius: 12px 12px 0 0;
+    display: flex; flex-direction: column;
+    animation: slideUpModal 0.25s;
+  }
+  @keyframes slideUpModal { from { transform: translateY(100%); } to { transform: translateY(0); } }
+  .modal-header { padding: 16px 20px; border-bottom: 1px solid var(--rule); display: flex; justify-content: space-between; align-items: center; background: white; }
+  .modal-title { font-family: var(--serif); font-size: 18px; color: var(--ink); }
+  .modal-close { background: transparent; border: none; font-size: 24px; color: var(--ink-light); cursor: pointer; padding: 0 4px; line-height: 1; }
+  .modal-search { padding: 12px 20px; border-bottom: 1px solid var(--rule); background: white; }
+  .modal-search input { width: 100%; padding: 10px; border: 1px solid var(--rule); border-radius: 4px; font-size: 14px; }
+  .modal-list { overflow-y: auto; padding: 8px 0; flex: 1; -webkit-overflow-scrolling: touch; }
+  .modal-group-label {
+    font-family: var(--mono); font-size: 10px; color: var(--sand);
+    letter-spacing: 2px; padding: 12px 20px 6px; font-weight: 600;
+  }
+  .modal-item {
+    padding: 12px 20px; cursor: pointer; font-size: 14px; color: var(--ink);
+    display: flex; justify-content: space-between; align-items: center;
+    border-bottom: 1px solid var(--rule);
+  }
+  .modal-item:active { background: var(--rule); }
+  .modal-item.selected { background: var(--primary); color: var(--pearl); }
+  .modal-item.selected::after { content: "✓"; }
+
+  @media (max-width: 380px) {
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    .bar-label { width: 110px; }
+    .proc-chip-text { max-width: 200px; }
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script>
+const SCRIPT_URL_KEY="duty_script_url",PENDING_KEY="duty_pending",CACHE_KEY="duty_cache";
+
+const PROCEDURE_GROUPS=[
+{group:"Общая хирургия",items:["Аппендэктомия","Холецистэктомия (лапароскопия)","Холецистэктомия (открытая)","Грыжесечение","Лапаротомия (диагностическая)","Ушивание перфорации","Спленэктомия","Дренирование абсцесса","Гастростомия","Трахеостомия","Ампутация","Обработка РАН","Венесекция / ЦВК"]},
+{group:"Колоректальная — плановая",items:["Гемиколэктомия правосторонняя","Гемиколэктомия левосторонняя","Резекция сигмовидной кишки","Резекция прямой кишки (передняя)","Низкая передняя резекция прямой кишки (LAR)","Брюшно-промежностная экстирпация прямой кишки (APR)","Колостомия (одноствольная)","Колостомия (двуствольная / петлевая)","Операция Гартмана","Закрытие колостомы","Илеостомия","Закрытие илеостомы","Геморроидэктомия (Миллиган-Морган)","Геморроидэктомия (степлерная, PPH)","Латеральная сфинктеротомия","Иссечение параректального свища","Вскрытие парапроктита","Иссечение эпителиального копчикового хода","Трансанальное иссечение (TAE)","Трансанальная эндоскопическая операция (TEM/TAMIS)"]},
+{group:"Колоректальная — онкология",items:["Правосторонняя гемиколэктомия (онко)","Левосторонняя гемиколэктомия (онко)","Резекция поперечно-ободочной кишки (онко)","Резекция сигмовидной кишки (онко)","Передняя резекция прямой кишки (онко)","Низкая передняя резекция + ТМЭ (онко)","Брюшно-промежностная экстирпация + ТМЭ (онко)","Субтотальная колэктомия (онко)","Экзентерация малого таза","Циторедуктивная операция + HIPEC","Резекция ободочной кишки лапароскопическая (онко)"]},
+{group:"Маммология — плановая",items:["Секторальная резекция молочной железы","Энуклеация фиброаденомы","Вакуум-аспирационная биопсия (VAB)","Эксцизионная биопсия молочной железы","Вскрытие абсцесса молочной железы","Субтотальная резекция молочной железы","Иссечение протока (операция Хэдфилда)","Микродохэктомия","Редукционная маммопластика","Маммопластика с имплантом (доброкачественная)"]},
+{group:"Маммология — онкология",items:["Лампэктомия (онко)","Широкое иссечение опухоли молочной железы (онко)","Онкопластическая резекция молочной железы","Мастэктомия по Маддену (МРМ)","Мастэктомия по Пэйти","Простая (тотальная) мастэктомия","Кожесохраняющая мастэктомия (SSM)","Сосковосохраняющая мастэктомия (NSM)","Биопсия сигнального лимфоузла (SLNB)","Подмышечная лимфодиссекция (ALND)","Немедленная реконструкция молочной железы (имплант)","Немедленная реконструкция (TRAM/DIEP-лоскут)","Отсроченная реконструкция молочной железы"]},
+{group:"Другое",items:["Другое"]}];
+
+const ROLES=["Оператор","Первый ассистент","Второй ассистент","Наблюдатель"];
+const ANESTHESIA=["Общий наркоз","Спинальная","Местная","Седация"];
+const ASA=["I","II","III","IV","V"];
+const COMPLICATIONS=["Нет","Кровотечение интраоперационное","Конверсия","Повреждение органа","Остановка сердца","Послеоперационное осложнение","Летальный исход","Другое"];
+
+function emptyForm(){return{date:new Date().toISOString().slice(0,16),procedures:[],procedureCustom:"",diagnosis:"",role:"Первый ассистент",anesthesia:"Общий наркоз",asa:"II",timeStart:"",timeEnd:"",complication:"Нет",complicationNote:"",notes:"",supervised:true}}
+
+function isOnco(p){if(!p)return false;return/онко|МРМ|Мастэктомия|мастэктомия|SLNB|ALND|HIPEC|Экзентерация|Лампэктомия|Онкопластическая/.test(p)}
+function entryIsOnco(e){const procs=getProcedures(e);return procs.some(isOnco)}
+
+// Universal getter: supports both new format (procedures array) and old (procedure string)
+function getProcedures(e){
+  if(Array.isArray(e.procedures))return e.procedures;
+  if(typeof e.procedures==="string"&&e.procedures)return e.procedures.split(" + ");
+  if(e.procedure)return [e.procedure];
+  return []
+}
+function getProcedureDisplay(e){return getProcedures(e).join(" + ")}
+
+function formatDate(d){if(!d)return"—";try{return new Intl.DateTimeFormat("ru-KZ",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}).format(new Date(d))}catch{return d}}
+
+function formatDuration(dateStr,start,end){if(!start||!end||!dateStr)return"—";const base=dateStr.slice(0,10);const mins=Math.round((new Date(`${base}T${end}`)-new Date(`${base}T${start}`))/60000);if(mins<=0)return"—";if(mins<60)return`${mins} мин`;return`${Math.floor(mins/60)}ч ${mins%60}мин`}
+
+let state={
+  scriptUrl:localStorage.getItem(SCRIPT_URL_KEY)||"",
+  entries:[],
+  pending:JSON.parse(localStorage.getItem(PENDING_KEY)||"[]"),
+  form:emptyForm(),
+  view:"log",
+  search:"",
+  expandedId:null,
+  toast:null,toastType:null,
+  status:null,errorMsg:"",
+  configInput:"",
+  modalOpen:false,
+  modalSearch:"",
+};
+try{state.entries=JSON.parse(localStorage.getItem(CACHE_KEY)||"[]")}catch{}
+
+async function apiGet(){if(!state.scriptUrl)throw new Error("URL не настроен");const res=await fetch(state.scriptUrl);if(!res.ok)throw new Error("HTTP "+res.status);const data=await res.json();if(data.error)throw new Error(data.error);return data.entries||[]}
+async function apiPost(action,payload){if(!state.scriptUrl)throw new Error("URL не настроен");const res=await fetch(state.scriptUrl,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({action,...payload})});if(!res.ok)throw new Error("HTTP "+res.status);const data=await res.json();if(data.error)throw new Error(data.error);return data}
+
+async function loadData(silent){if(!state.scriptUrl)return;if(!silent){state.status="loading";render()}
+try{const entries=await apiGet();state.entries=entries;localStorage.setItem(CACHE_KEY,JSON.stringify(entries));state.status=null;state.errorMsg="";await syncPending()}catch(err){state.status="error";state.errorMsg=err.message}render()}
+
+async function syncPending(){if(state.pending.length===0)return;state.status="syncing";render();const remaining=[];for(const item of state.pending){try{await apiPost(item.action,item.payload)}catch(err){remaining.push(item)}}
+state.pending=remaining;localStorage.setItem(PENDING_KEY,JSON.stringify(remaining));
+if(remaining.length===0){try{const entries=await apiGet();state.entries=entries;localStorage.setItem(CACHE_KEY,JSON.stringify(entries))}catch{}state.status=null}else{state.status="error";state.errorMsg=`Не синхр.: ${remaining.length}`}render()}
+
+function showToast(text,type){state.toast=text;state.toastType=type||null;render();setTimeout(()=>{state.toast=null;state.toastType=null;render()},2500)}
+
+function saveScriptUrl(){const url=state.configInput.trim();if(!url.startsWith("https://script.google.com/")){showToast("Невалидный URL","error");return}
+state.scriptUrl=url;localStorage.setItem(SCRIPT_URL_KEY,url);state.configInput="";showToast("✓ URL сохранён");loadData()}
+
+function changeUrl(){state.configInput=state.scriptUrl;state.scriptUrl="";localStorage.removeItem(SCRIPT_URL_KEY);render()}
+
+function setView(v){state.view=v;render()}
+function updateForm(k,v){state.form[k]=v;render()}
+function setSearch(v){state.search=v;render()}
+function toggleExpand(id){state.expandedId=state.expandedId===id?null:id;render()}
+
+function openProcModal(){state.modalOpen=true;state.modalSearch="";render()}
+function closeProcModal(){state.modalOpen=false;render()}
+function toggleProc(proc){
+  const list=[...state.form.procedures];
+  const idx=list.indexOf(proc);
+  if(idx>=0)list.splice(idx,1);
+  else list.push(proc);
+  state.form.procedures=list;
+  render()
+}
+function removeProc(proc){
+  state.form.procedures=state.form.procedures.filter(p=>p!==proc);
+  render()
+}
+
+async function submitEntry(){
+  const f=state.form;
+  let procs=[...f.procedures];
+  // Handle "Другое" custom name
+  if(procs.includes("Другое")&&f.procedureCustom.trim()){
+    procs=procs.map(p=>p==="Другое"?f.procedureCustom.trim():p)
+  }
+  if(procs.length===0){showToast("Выбери хотя бы одну процедуру","error");return}
+
+  const entry={
+    id:Date.now(),
+    date:f.date,
+    procedures:procs,
+    diagnosis:f.diagnosis,
+    role:f.role,
+    asa:f.asa,
+    anesthesia:f.anesthesia,
+    timeStart:f.timeStart,
+    timeEnd:f.timeEnd,
+    complication:f.complication,
+    complicationNote:f.complicationNote,
+    notes:f.notes,
+    supervised:f.supervised,
+  };
+
+  state.entries.unshift(entry);
+  localStorage.setItem(CACHE_KEY,JSON.stringify(state.entries));
+  state.form=emptyForm();
+  state.view="list";
+
+  try{
+    // Backend stores procedures as joined string for backward compat
+    const payload={...entry,procedures:procs.join(" + "),procedure:procs.join(" + ")};
+    await apiPost("add",{entry:payload});
+    showToast("✓ Сохранено")
+  }catch(err){
+    state.pending.push({action:"add",payload:{entry:{...entry,procedures:procs.join(" + "),procedure:procs.join(" + ")}}});
+    localStorage.setItem(PENDING_KEY,JSON.stringify(state.pending));
+    showToast("Сохранено локально","error")
+  }
+  render()
+}
+
+async function deleteEntry(id){
+  if(!confirm("Удалить эту запись?"))return;
+  state.entries=state.entries.filter(e=>e.id!==id);
+  localStorage.setItem(CACHE_KEY,JSON.stringify(state.entries));
+  state.expandedId=null;
+  try{await apiPost("delete",{id});showToast("✓ Удалено")}
+  catch(err){state.pending.push({action:"delete",payload:{id}});localStorage.setItem(PENDING_KEY,JSON.stringify(state.pending));showToast("Удалено локально","error")}
+  render()
+}
+
+function exportCSV(){
+  if(state.entries.length===0){showToast("Нет данных","error");return}
+  const headers=["Дата","Процедуры","Диагноз","Роль","ASA","Анестезия","Длительность","Осложнение","Заметки","Руководство"];
+  const rows=state.entries.map(e=>[
+    formatDate(e.date),
+    getProcedureDisplay(e),
+    e.diagnosis,e.role,e.asa,e.anesthesia,
+    formatDuration(e.date,e.timeStart,e.timeEnd),
+    e.complication+(e.complicationNote?` — ${e.complicationNote}`:""),
+    e.notes,
+    e.supervised?"Под руководством":"Самостоятельно"
+  ]);
+  const csv=[headers,...rows].map(r=>r.map(c=>`"${(c||"").toString().replace(/"/g,'""')}"`).join(",")).join("\n");
+  const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8;"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url;a.download=`duty_log_${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url)
+}
+
+function h(tag,attrs={},...children){const el=document.createElement(tag);for(const k in attrs){if(k==="class")el.className=attrs[k];else if(k==="html")el.innerHTML=attrs[k];else if(k.startsWith("on"))el.addEventListener(k.slice(2).toLowerCase(),attrs[k]);else if(k==="checked")el.checked=attrs[k];else if(k==="value")el.value=attrs[k];else if(attrs[k]!==false&&attrs[k]!=null)el.setAttribute(k,attrs[k])}
+for(const c of children.flat()){if(c==null||c===false)continue;el.appendChild(typeof c==="string"||typeof c==="number"?document.createTextNode(c):c)}return el}
+
+function inputEl(o){return h("input",{class:"input",type:o.type||"text",value:o.value||"",placeholder:o.placeholder||"",onInput:e=>o.onChange(e.target.value)})}
+function selectEl(o){const s=h("select",{class:"select"+(o.value?"":" empty"),onChange:e=>o.onChange(e.target.value)});if(o.placeholder)s.appendChild(h("option",{value:""},o.placeholder));o.options.forEach(x=>s.appendChild(h("option",{value:x,selected:x===o.value},x)));s.value=o.value||"";return s}
+function row(label,...children){return h("div",{class:"row"},h("div",{class:"row-label"},label),...children)}
+
+function viewConfig(){return h("div",{class:"config-banner"},h("div",null,h("strong",null,"Шаг 1: настройка Google Sheets")),h("div",{style:"margin-top: 8px;"},"Вставь ссылку на Apps Script Web App из инструкции"),h("input",{type:"text",placeholder:"https://script.google.com/macros/s/AKfy.../exec",value:state.configInput,onInput:e=>{state.configInput=e.target.value}}),h("button",{onClick:saveScriptUrl},"СОХРАНИТЬ И ПОДКЛЮЧИТЬ"))}
+
+function procModal(){
+  if(!state.modalOpen)return null;
+  const search=state.modalSearch.toLowerCase();
+  const filtered=PROCEDURE_GROUPS.map(g=>({
+    group:g.group,
+    items:g.items.filter(i=>!search||i.toLowerCase().includes(search))
+  })).filter(g=>g.items.length>0);
+
+  const list=h("div",{class:"modal-list"});
+  filtered.forEach(g=>{
+    list.appendChild(h("div",{class:"modal-group-label"},g.group.toUpperCase()));
+    g.items.forEach(item=>{
+      const selected=state.form.procedures.includes(item);
+      list.appendChild(h("div",{
+        class:"modal-item"+(selected?" selected":""),
+        onClick:()=>toggleProc(item),
+      },item))
+    })
+  });
+
+  return h("div",{class:"modal-backdrop",onClick:e=>{if(e.target.classList.contains("modal-backdrop"))closeProcModal()}},
+    h("div",{class:"modal"},
+      h("div",{class:"modal-header"},
+        h("div",{class:"modal-title"},`Процедуры (${state.form.procedures.length})`),
+        h("button",{class:"modal-close",onClick:closeProcModal},"×"),
+      ),
+      h("div",{class:"modal-search"},
+        h("input",{type:"text",placeholder:"Поиск...",value:state.modalSearch,onInput:e=>{state.modalSearch=e.target.value;render()}}),
+      ),
+      list,
+      h("div",{style:"padding: 12px 20px; border-top: 1px solid var(--rule); background: white;"},
+        h("button",{class:"btn",onClick:closeProcModal},`ГОТОВО · ${state.form.procedures.length} ВЫБРАНО`),
+      ),
+    ),
+  )
+}
+
+function viewLog(){
+  const f=state.form;
+  const c=h("div");
+
+  c.appendChild(row("ДАТА / ВРЕМЯ",inputEl({type:"datetime-local",value:f.date,onChange:v=>updateForm("date",v)})));
+
+  // Multi-procedure
+  const procRow=h("div",{class:"row"},
+    h("div",{class:"row-label"},`ПРОЦЕДУРЫ${f.procedures.length?` · ${f.procedures.length}`:""}`),
+  );
+  if(f.procedures.length>0){
+    const chips=h("div",{class:"proc-chips"});
+    f.procedures.forEach(p=>{
+      chips.appendChild(h("div",{class:"proc-chip"},
+        h("span",{class:"proc-chip-text"},p),
+        h("button",{class:"proc-chip-remove",onClick:()=>removeProc(p)},"×"),
+      ))
+    });
+    procRow.appendChild(chips);
+  }
+  procRow.appendChild(h("button",{class:"add-proc-btn",onClick:openProcModal},
+    f.procedures.length===0?"+ ВЫБРАТЬ ПРОЦЕДУРУ":"+ ДОБАВИТЬ ЕЩЁ"
+  ));
+  if(f.procedures.includes("Другое")){
+    procRow.appendChild(h("div",{style:"margin-top: 8px;"},
+      inputEl({value:f.procedureCustom,placeholder:"Название другой процедуры...",onChange:v=>updateForm("procedureCustom",v)})
+    ))
+  }
+  c.appendChild(procRow);
+
+  c.appendChild(row("ДИАГНОЗ / МКБ",inputEl({value:f.diagnosis,placeholder:"C50.4 + C18.2...",onChange:v=>updateForm("diagnosis",v)})));
+
+  c.appendChild(h("div",{class:"grid-2"},
+    row("МОЯ РОЛЬ",selectEl({value:f.role,options:ROLES,onChange:v=>updateForm("role",v)})),
+    row("ASA",selectEl({value:f.asa,options:ASA,onChange:v=>updateForm("asa",v)})),
+  ));
+
+  c.appendChild(row("АНЕСТЕЗИЯ",selectEl({value:f.anesthesia,options:ANESTHESIA,onChange:v=>updateForm("anesthesia",v)})));
+
+  c.appendChild(h("div",{class:"grid-2"},
+    row("НАЧАЛО ОП.",inputEl({type:"time",value:f.timeStart,onChange:v=>updateForm("timeStart",v)})),
+    row("КОНЕЦ ОП.",inputEl({type:"time",value:f.timeEnd,onChange:v=>updateForm("timeEnd",v)})),
+  ));
+
+  if(f.timeStart&&f.timeEnd){
+    c.appendChild(h("div",{class:"duration-hint"},`Длительность: ${formatDuration(f.date,f.timeStart,f.timeEnd)}`))
+  }
+
+  const complRow=row("ОСЛОЖНЕНИЯ",selectEl({value:f.complication,options:COMPLICATIONS,onChange:v=>updateForm("complication",v)}));
+  if(f.complication!=="Нет"){
+    complRow.appendChild(h("div",{style:"margin-top: 8px;"},
+      inputEl({value:f.complicationNote,placeholder:"Уточнение...",onChange:v=>updateForm("complicationNote",v)})
+    ))
+  }
+  c.appendChild(complRow);
+
+  c.appendChild(row("ЗАМЕТКИ",h("textarea",{class:"textarea",placeholder:"Особенности техники, учебные моменты...",onInput:e=>updateForm("notes",e.target.value)},f.notes)));
+
+  c.appendChild(h("div",{class:"checkbox-row"},
+    h("input",{type:"checkbox",id:"sup_cb",checked:f.supervised,onChange:e=>updateForm("supervised",e.target.checked)}),
+    h("label",{for:"sup_cb"},"Под руководством старшего хирурга"),
+  ));
+
+  c.appendChild(h("button",{class:"btn",onClick:submitEntry},"СОХРАНИТЬ ЗАПИСЬ"));
+
+  return c
+}
+
+function viewList(){const c=h("div");
+c.appendChild(h("div",{class:"search-row"},inputEl({value:state.search,placeholder:"Поиск по процедуре, диагнозу...",onChange:setSearch}),h("button",{class:"icon-btn",onClick:()=>loadData()},"↻")));
+const filtered=state.entries.filter(e=>{
+  if(!state.search)return true;
+  const s=state.search.toLowerCase();
+  const procDisplay=getProcedureDisplay(e).toLowerCase();
+  return procDisplay.includes(s)||(e.diagnosis&&e.diagnosis.toLowerCase().includes(s))
+});
+if(filtered.length===0){c.appendChild(h("div",{class:"empty-state"},state.search?"Ничего не найдено":"Записей нет. Добавь первую операцию →"));return c}
+filtered.forEach(e=>{
+  const isPending=state.pending.some(p=>p.action==="add"&&p.payload.entry.id===e.id);
+  const tags=h("div",{class:"entry-tags"});
+  if(isPending)tags.appendChild(h("span",{class:"tag tag-pending"},"СИНХР..."));
+  if(e.complication&&e.complication!=="Нет")tags.appendChild(h("span",{class:"tag tag-complication"},"ОСЛОЖН."));
+  if(entryIsOnco(e))tags.appendChild(h("span",{class:"tag tag-onco"},"ОНКО"));
+  tags.appendChild(h("span",{class:"entry-arrow"},state.expandedId===e.id?"▲":"▼"));
+  const head=h("div",{class:"entry-head",onClick:()=>toggleExpand(e.id)},
+    h("div",{style:"flex: 1; min-width: 0;"},
+      h("div",{class:"entry-title"},getProcedureDisplay(e)),
+      h("div",{class:"entry-meta"},`${formatDate(e.date)} · ${e.role}`),
+    ),tags);
+  const entry=h("div",{class:"entry"},head);
+  if(state.expandedId===e.id){const body=h("div",{class:"entry-body"});
+    function field(label,value,full){return h("div",{class:full?"field-full":""},h("div",{class:"field-label"},label),h("div",{class:"field-value"},value||"—"))}
+    body.appendChild(field("Диагноз",e.diagnosis));
+    body.appendChild(field("Анестезия",e.anesthesia));
+    body.appendChild(field("ASA",e.asa));
+    body.appendChild(field("Длительность",formatDuration(e.date,e.timeStart,e.timeEnd)));
+    body.appendChild(field("Руководство",e.supervised?"Под рук.":"Самост."));
+    body.appendChild(field("Осложнение",`${e.complication}${e.complicationNote?` — ${e.complicationNote}`:""}`));
+    if(e.notes)body.appendChild(field("Заметки",e.notes,true));
+    body.appendChild(h("div",{class:"field-full"},
+      h("button",{class:"delete-btn",onClick:()=>deleteEntry(e.id)},"УДАЛИТЬ")));
+    entry.appendChild(body)
+  }
+  c.appendChild(entry)
+});
+return c}
+
+function viewStats(){const c=h("div");const total=state.entries.length;
+const byRole={};ROLES.forEach(r=>byRole[r]=state.entries.filter(e=>e.role===r).length);
+const byProc={};
+state.entries.forEach(e=>{
+  getProcedures(e).forEach(p=>{byProc[p]=(byProc[p]||0)+1})
+});
+const topProcs=Object.entries(byProc).sort((a,b)=>b[1]-a[1]).slice(0,5);
+const complications=state.entries.filter(e=>e.complication&&e.complication!=="Нет").length;
+const oncoCount=state.entries.filter(entryIsOnco).length;
+function sc(label,value,type){return h("div",{class:"stat-card"+(type?" "+type:"")},h("div",{class:"stat-value"},String(value)),h("div",{class:"stat-label"},label))}
+c.appendChild(h("div",{class:"stats-grid"},sc("ВСЕГО",total),sc("ОПЕРАТОР",byRole["Оператор"]||0,"highlight"),sc("ОНКО",oncoCount),sc("ОСЛОЖН.",complications,complications>0?"accent":"")));
+c.appendChild(h("div",{class:"section-title"},"ПО РОЛИ"));
+ROLES.forEach(r=>{const v=byRole[r]||0;const pct=total?(v/total)*100:0;
+c.appendChild(h("div",{class:"bar-row"},h("div",{class:"bar-label"},r),h("div",{class:"bar-track"},h("div",{class:"bar-fill",style:`width: ${pct}%`})),h("div",{class:"bar-value"},String(v))))});
+c.appendChild(h("div",{class:"section-title"},"ТОП ПРОЦЕДУРЫ"));
+if(topProcs.length===0)c.appendChild(h("div",{style:"color: var(--ink-light); font-size: 12px;"},"Нет данных"));
+else{
+  const maxCount=topProcs[0][1];
+  topProcs.forEach(([proc,count])=>{const pct=maxCount?(count/maxCount)*100:0;
+  c.appendChild(h("div",{class:"bar-row"},h("div",{class:"bar-label"},proc),h("div",{class:"bar-track"},h("div",{class:"bar-fill",style:`width: ${pct}%`})),h("div",{class:"bar-value"},String(count))))})
+}
+c.appendChild(h("button",{class:"btn secondary",style:"margin-top: 20px;",onClick:exportCSV},"↓ ЭКСПОРТ CSV"));
+c.appendChild(h("div",{class:"settings-row"},h("div",{class:"row-label"},"GOOGLE SHEETS URL"),h("div",{class:"url-display"},state.scriptUrl?state.scriptUrl.slice(0,60)+"...":"—"),h("button",{class:"change-btn",onClick:changeUrl},"ИЗМЕНИТЬ URL")));
+return c}
+
+function render(){const root=document.getElementById("root");root.innerHTML="";
+let statusHtml=`${state.entries.length} записей`;
+if(state.status==="loading")statusHtml='<span class="status-loading">↓ загрузка...</span>';
+else if(state.status==="syncing")statusHtml=`<span class="status-sync">↑ синхр. ${state.pending.length}</span>`;
+else if(state.status==="error")statusHtml=`<span class="status-error">⚠ ${state.errorMsg}</span>`;
+else if(state.pending.length>0)statusHtml=`<span class="status-sync">⏳ ${state.pending.length} в очереди</span>`;
+const header=h("div",{class:"header"},h("div",null,h("div",{class:"header-title"},"DR. КАУКЕНОВА · ХИРУРГИЯ"),h("div",{class:"header-main"},"Дежурный логгер")),h("div",{class:"header-meta",html:statusHtml+`<div>${new Date().toLocaleDateString("ru-KZ")}</div>`}));
+root.appendChild(header);
+if(!state.scriptUrl){root.appendChild(h("div",{class:"container"},viewConfig()));return}
+const navBtn=(key,label)=>h("button",{class:state.view===key?"active":"",onClick:()=>setView(key)},label);
+root.appendChild(h("div",{class:"nav"},navBtn("log","+ ЗАПИСЬ"),navBtn("list","ЖУРНАЛ"),navBtn("stats","СТАТИСТИКА")));
+const content=h("div",{class:"container"});
+if(state.view==="log")content.appendChild(viewLog());
+else if(state.view==="list")content.appendChild(viewList());
+else if(state.view==="stats")content.appendChild(viewStats());
+root.appendChild(content);
+const modal=procModal();
+if(modal)root.appendChild(modal);
+if(state.toast)root.appendChild(h("div",{class:"toast"+(state.toastType==="error"?" error":"")},state.toast))}
+
+render();
+if(state.scriptUrl)loadData();
+window.addEventListener("online",()=>{if(state.scriptUrl)syncPending()});
+</script>
+</body>
+</html>
