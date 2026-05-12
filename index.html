@@ -346,8 +346,26 @@ state.scriptUrl=url;localStorage.setItem(SCRIPT_URL_KEY,url);state.configInput="
 function changeUrl(){state.configInput=state.scriptUrl;state.scriptUrl="";localStorage.removeItem(SCRIPT_URL_KEY);render()}
 
 function setView(v){state.view=v;render()}
-function updateForm(k,v){state.form[k]=v;render()}
-function setSearch(v){state.search=v;render()}
+// Поля которые НЕ требуют re-render при вводе (текстовые поля — чтобы не терять фокус и клавиатуру)
+const NO_RENDER_FIELDS=new Set(["diagnosis","procedureCustom","complicationNote","notes","date","timeStart","timeEnd"]);
+function updateForm(k,v){state.form[k]=v;if(!NO_RENDER_FIELDS.has(k))render()}
+
+// Search с debounce — обновляет фильтр без потери фокуса
+let searchTimer=null;
+function setSearch(v){
+  state.search=v;
+  if(searchTimer)clearTimeout(searchTimer);
+  searchTimer=setTimeout(()=>{
+    // Обновить только список без render всего экрана
+    const root=document.getElementById("root");
+    const container=root.querySelector(".container");
+    if(container&&state.view==="list"){
+      const newList=viewList();
+      container.innerHTML="";
+      container.appendChild(newList);
+    }
+  },200)
+}
 function toggleExpand(id){state.expandedId=state.expandedId===id?null:id;render()}
 
 function openProcModal(){state.modalOpen=true;state.modalSearch="";render()}
@@ -358,7 +376,7 @@ function toggleProc(proc){
   if(idx>=0)list.splice(idx,1);
   else list.push(proc);
   state.form.procedures=list;
-  render()
+  // Без render — обновление UI делается локально в onClick из buildModalList
 }
 function removeProc(proc){
   state.form.procedures=state.form.procedures.filter(p=>p!==proc);
@@ -447,14 +465,12 @@ function row(label,...children){return h("div",{class:"row"},h("div",{class:"row
 
 function viewConfig(){return h("div",{class:"config-banner"},h("div",null,h("strong",null,"Шаг 1: настройка Google Sheets")),h("div",{style:"margin-top: 8px;"},"Вставь ссылку на Apps Script Web App из инструкции"),h("input",{type:"text",placeholder:"https://script.google.com/macros/s/AKfy.../exec",value:state.configInput,onInput:e=>{state.configInput=e.target.value}}),h("button",{onClick:saveScriptUrl},"СОХРАНИТЬ И ПОДКЛЮЧИТЬ"))}
 
-function procModal(){
-  if(!state.modalOpen)return null;
+function buildModalList(){
   const search=state.modalSearch.toLowerCase();
   const filtered=PROCEDURE_GROUPS.map(g=>({
     group:g.group,
     items:g.items.filter(i=>!search||i.toLowerCase().includes(search))
   })).filter(g=>g.items.length>0);
-
   const list=h("div",{class:"modal-list"});
   filtered.forEach(g=>{
     list.appendChild(h("div",{class:"modal-group-label"},g.group.toUpperCase()));
@@ -462,10 +478,25 @@ function procModal(){
       const selected=state.form.procedures.includes(item);
       list.appendChild(h("div",{
         class:"modal-item"+(selected?" selected":""),
-        onClick:()=>toggleProc(item),
+        onClick:()=>{toggleProc(item);
+          // Обновить только список — чтобы не закрылась клавиатура поиска
+          const cur=document.querySelector(".modal-list");
+          if(cur)cur.replaceWith(buildModalList());
+          // Обновить счётчик в header и кнопке
+          const title=document.querySelector(".modal-title");
+          if(title)title.textContent=`Процедуры (${state.form.procedures.length})`;
+          const btn=document.querySelector(".modal .btn");
+          if(btn)btn.textContent=`ГОТОВО · ${state.form.procedures.length} ВЫБРАНО`;
+        },
       },item))
     })
   });
+  return list
+}
+
+function procModal(){
+  if(!state.modalOpen)return null;
+  const list=buildModalList();
 
   return h("div",{class:"modal-backdrop",onClick:e=>{if(e.target.classList.contains("modal-backdrop"))closeProcModal()}},
     h("div",{class:"modal"},
@@ -474,7 +505,15 @@ function procModal(){
         h("button",{class:"modal-close",onClick:closeProcModal},"×"),
       ),
       h("div",{class:"modal-search"},
-        h("input",{type:"text",placeholder:"Поиск...",value:state.modalSearch,onInput:e=>{state.modalSearch=e.target.value;render()}}),
+        h("input",{type:"text",placeholder:"Поиск...",value:state.modalSearch,onInput:e=>{
+          state.modalSearch=e.target.value;
+          // Обновить только список процедур, не весь модал — чтобы не потерять фокус
+          const list=document.querySelector(".modal-list");
+          if(list){
+            const newList=buildModalList();
+            list.replaceWith(newList);
+          }
+        }}),
       ),
       list,
       h("div",{style:"padding: 12px 20px; border-top: 1px solid var(--rule); background: white;"},
