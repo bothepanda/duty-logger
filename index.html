@@ -32,7 +32,9 @@
     min-height: 100vh; overscroll-behavior: none;
   }
   body { padding-bottom: env(safe-area-inset-bottom); }
-  input, select, textarea, button { font-family: inherit; -webkit-appearance: none; appearance: none; }
+  input, select, textarea, button { font-family: inherit; }
+  input:not([type="checkbox"]):not([type="radio"]), select, textarea, button { -webkit-appearance: none; appearance: none; }
+  input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--primary); cursor: pointer; }
   input[type="date"]::-webkit-calendar-picker-indicator, input[type="time"]::-webkit-calendar-picker-indicator, input[type="datetime-local"]::-webkit-calendar-picker-indicator { opacity: 0.6; cursor: pointer; }
   select option { background: white; color: var(--ink); }
   select optgroup { background: var(--pearl); color: var(--primary); font-style: italic; font-weight: 600; }
